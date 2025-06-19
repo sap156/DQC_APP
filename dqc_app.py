@@ -102,6 +102,7 @@ if uploaded_file is not None:
         # Read CSV with tilde delimiter
         df = pd.read_csv(uploaded_file, delimiter='~')
         
+
         # Convert to list of dictionaries and ensure uppercase
         uploaded_rows = []
         for _, row in df.iterrows():
@@ -116,6 +117,8 @@ if uploaded_file is not None:
             uploaded_rows.append(rule_dict)
 
         st.session_state.rows = uploaded_rows
+        # Store original data for reset functionality
+        st.session_state.original_rows = uploaded_rows.copy()
         st.success(f"✅ Successfully uploaded {len(uploaded_rows)} records")
 
     except Exception as e:
@@ -323,6 +326,9 @@ if st.button("➕ Add Rule", use_container_width=True, type="primary"):
         st.session_state.validation_errors = validation_errors
     else:
         st.session_state.rows.append(form_data)
+        # Store original data for reset functionality if this is the first rule
+        if len(st.session_state.rows) == 1 and 'original_rows' not in st.session_state:
+            st.session_state.original_rows = st.session_state.rows.copy()
         st.success("✅ Rule added successfully!")
         # Clear any previous validation errors
         if 'validation_errors' in st.session_state:
@@ -372,11 +378,14 @@ else:
             if all_errors:
                 # Store validation errors in session state for display
                 st.session_state.all_validation_errors = all_errors
+                st.error("❌ Validation errors found!")
             else:
                 st.success("✅ All rules are valid!")
                 # Clear any previous validation errors
                 if 'all_validation_errors' in st.session_state:
                     del st.session_state.all_validation_errors
+                if 'auto_validation_errors' in st.session_state:
+                    del st.session_state.auto_validation_errors
 
     with col_download:
         # Generate CSV download
@@ -413,187 +422,160 @@ else:
             st.error(f"• {error}")
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Display complete rules table with all fields
-    st.subheader("📊 Complete Rules Overview")
-    df = pd.DataFrame(st.session_state.rows)
-    st.dataframe(df, use_container_width=True, height=400)
+    # Editable data table
+    st.subheader("📊 Complete Rules Overview (Click to Edit)")
     
-    # Individual rule management with editing capability
-    st.subheader("🔧 Individual Rule Management")
-    for i, row in enumerate(st.session_state.rows):
-        with st.expander(f"Rule {i+1}: {row.get('RULE_NM', 'Unnamed Rule')}", expanded=False):
+    if len(st.session_state.rows) > 0:
+        # Create editable interface using st.data_editor
+        df = pd.DataFrame(st.session_state.rows)
+        
+        # Convert date columns to datetime.date for Streamlit compatibility
+        for date_col in ["RULE_EFF_DT", "RULE_EXP_DT"]:
+            if date_col in df.columns:
+                df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date
+        
+        # Define column configuration for better editing experience
+        column_config = {
+            "DATA_QC_ID": st.column_config.TextColumn("DATA_QC_ID", disabled=True),
+            "APPL_CD": st.column_config.TextColumn("APPL_CD", required=True),
+            "RULE_NM": st.column_config.TextColumn("RULE_NM", required=True),
+            "RULE_DSC_TXT": st.column_config.TextColumn("RULE_DSC_TXT", width="large"),
+            "RULE_FREQ_CD": st.column_config.TextColumn("RULE_FREQ_CD", disabled=True),
+            "RULE_VALID_CTGY_NM": st.column_config.SelectboxColumn(
+                "RULE_VALID_CTGY_NM",
+                options=FIELDS["RULE_VALID_CTGY_NM"],
+                required=True
+            ),
+            "RULE_VALID_METH_CD": st.column_config.SelectboxColumn(
+                "RULE_VALID_METH_CD",
+                options=FIELDS["RULE_VALID_METH_CD"],
+                required=True
+            ),
+            "RULE_ABORT_IND": st.column_config.SelectboxColumn(
+                "RULE_ABORT_IND",
+                options=FIELDS["RULE_ABORT_IND"],
+                required=True
+            ),
+            "RULE_SRC_DB_NM": st.column_config.SelectboxColumn(
+                "RULE_SRC_DB_NM",
+                options=FIELDS["RULE_SRC_DB_NM"],
+                required=True
+            ),
+            "RULE_SRC_SCHM_NM": st.column_config.SelectboxColumn(
+                "RULE_SRC_SCHM_NM",
+                options=FIELDS["RULE_SRC_SCHM_NM"],
+                required=True
+            ),
+            "RULE_SRC_OBJ_ID_TXT": st.column_config.TextColumn("RULE_SRC_OBJ_ID_TXT"),
+            "RULE_SRC_ATTR_NM": st.column_config.TextColumn("RULE_SRC_ATTR_NM"),
+            "RULE_TRGT_DB_NM": st.column_config.SelectboxColumn(
+                "RULE_TRGT_DB_NM",
+                options=FIELDS["RULE_TRGT_DB_NM"],
+                required=True
+            ),
+            "RULE_TRGT_SCHM_NM": st.column_config.SelectboxColumn(
+                "RULE_TRGT_SCHM_NM",
+                options=FIELDS["RULE_TRGT_SCHM_NM"],
+                required=True
+            ),
+            "RULE_TRGT_OBJ_ID_TXT": st.column_config.TextColumn("RULE_TRGT_OBJ_ID_TXT"),
+            "RULE_TRGT_ATTR_NM": st.column_config.TextColumn("RULE_TRGT_ATTR_NM"),
+            "RULE_ACPT_VARY_PCT": st.column_config.TextColumn("RULE_ACPT_VARY_PCT"),
+            "RULE_MIN_THRESH_VALUE_TXT": st.column_config.TextColumn("RULE_MIN_THRESH_VALUE_TXT"),
+            "RULE_MAX_THRESH_VALUE_TXT": st.column_config.TextColumn("RULE_MAX_THRESH_VALUE_TXT"),
+            "RULE_TRGT_DATA_LAYER_NM": st.column_config.SelectboxColumn(
+                "RULE_TRGT_DATA_LAYER_NM",
+                options=FIELDS["RULE_TRGT_DATA_LAYER_NM"],
+                required=True
+            ),
+            "RULE_CDE_IND": st.column_config.TextColumn("RULE_CDE_IND", disabled=True),
+            "RULE_LOGIC_TXT": st.column_config.TextColumn("RULE_LOGIC_TXT", width="large"),
+            "RULE_EFF_DT": st.column_config.DateColumn("RULE_EFF_DT"),
+            "RULE_EXP_DT": st.column_config.DateColumn("RULE_EXP_DT"),
+            "RULE_ACTV_IND": st.column_config.SelectboxColumn(
+                "RULE_ACTV_IND",
+                options=FIELDS["RULE_ACTV_IND"],
+                required=True
+            ),
+            "RULE_RMRK_TXT": st.column_config.TextColumn("RULE_RMRK_TXT"),
+            "CREA_PRTY_ID": st.column_config.TextColumn("CREA_PRTY_ID", disabled=True),
+            "CREA_TS": st.column_config.TextColumn("CREA_TS", disabled=True),
+            "UPDT_PRTY_ID": st.column_config.TextColumn("UPDT_PRTY_ID", disabled=True),
+            "UPDT_TS": st.column_config.TextColumn("UPDT_TS", disabled=True),
+            "ETL_CREA_NR": st.column_config.TextColumn("ETL_CREA_NR", disabled=True),
+            "ETL_CREA_TS": st.column_config.TextColumn("ETL_CREA_TS", disabled=True),
+            "ETL_UPDT_NR": st.column_config.TextColumn("ETL_UPDT_NR", disabled=True),
+            "ETL_UPDT_TS": st.column_config.TextColumn("ETL_UPDT_TS", disabled=True),
+            "ASSET_ID": st.column_config.TextColumn("ASSET_ID", disabled=True),
+            "ASSET_NM": st.column_config.TextColumn("ASSET_NM"),
+            "RULE_SEQ_NR": st.column_config.SelectboxColumn(
+                "RULE_SEQ_NR",
+                options=FIELDS["RULE_SEQ_NR"],
+                required=True
+            ),
+        }
+        
+        # Use data_editor for inline editing
+        edited_df = st.data_editor(
+            df,
+            column_config=column_config,
+            use_container_width=True,
+            height=500,
+            num_rows="dynamic",  # Allow adding/deleting rows
+            key="rules_editor"
+        )
+        
+        # Update session state with edited data and auto-validate
+        if not edited_df.equals(df):
+            # Convert back to list of dictionaries
+            updated_rows = []
+            for _, row in edited_df.iterrows():
+                rule_dict = {}
+                for field in FIELDS.keys():
+                    value = str(row.get(field, "")) if pd.notna(row.get(field, "")) else ""
+                    # Convert text fields to uppercase
+                    if field in ["APPL_CD", "RULE_NM", "RULE_DSC_TXT", "RULE_SRC_OBJ_ID_TXT", 
+                                 "RULE_TRGT_SCHM_NM", "RULE_TRGT_OBJ_ID_TXT", "RULE_TRGT_ATTR_NM", "RULE_LOGIC_TXT", "RULE_RMRK_TXT", "ASSET_NM"]:
+                        value = value.upper()
+                    # Convert date fields back to string format
+                    if field in ["RULE_EFF_DT", "RULE_EXP_DT"] and pd.notna(row.get(field)):
+                        try:
+                            value = pd.to_datetime(row.get(field)).strftime("%Y-%m-%d")
+                        except:
+                            value = str(row.get(field, ""))
+                    rule_dict[field] = value
+                updated_rows.append(rule_dict)
             
-            # Create editable form for each rule
-            st.markdown("**✏️ Edit Rule Details**")
+            st.session_state.rows = updated_rows
             
-            # Use columns for better layout
-            col_edit1, col_edit2 = st.columns(2)
+            # Use the SAME validation logic as "Validate All Rules"
+            validation_errors = []
+            for i, row in enumerate(st.session_state.rows):
+                errors = validate_single_row(row, st.session_state.rows, is_new_row=False)
+                if errors:
+                    validation_errors.extend([f"Row {i+1}: {error}" for error in errors])
             
-            with col_edit1:
-                # Core identification fields
-                st.markdown("**📋 Core Information**")
-                edit_appl_cd = st.text_input("APPL_CD", value=row.get('APPL_CD', ''), key=f"edit_appl_cd_{i}")
-                edit_rule_nm = st.text_input("RULE_NM", value=row.get('RULE_NM', ''), key=f"edit_rule_nm_{i}")
-                edit_rule_dsc_txt = st.text_area("RULE_DSC_TXT", value=row.get('RULE_DSC_TXT', ''), key=f"edit_rule_dsc_txt_{i}", height=100)
-                
-                edit_rule_valid_ctgy_nm = st.selectbox("RULE_VALID_CTGY_NM", 
-                                                     FIELDS["RULE_VALID_CTGY_NM"], 
-                                                     index=FIELDS["RULE_VALID_CTGY_NM"].index(row.get('RULE_VALID_CTGY_NM', FIELDS["RULE_VALID_CTGY_NM"][0])) if row.get('RULE_VALID_CTGY_NM') in FIELDS["RULE_VALID_CTGY_NM"] else 0,
-                                                     key=f"edit_rule_valid_ctgy_nm_{i}")
-                
-                edit_rule_valid_meth_cd = st.selectbox("RULE_VALID_METH_CD", 
-                                                     FIELDS["RULE_VALID_METH_CD"], 
-                                                     index=FIELDS["RULE_VALID_METH_CD"].index(row.get('RULE_VALID_METH_CD', FIELDS["RULE_VALID_METH_CD"][0])) if row.get('RULE_VALID_METH_CD') in FIELDS["RULE_VALID_METH_CD"] else 0,
-                                                     key=f"edit_rule_valid_meth_cd_{i}")
-                
-                edit_rule_abort_ind = st.selectbox("RULE_ABORT_IND", 
-                                                 FIELDS["RULE_ABORT_IND"], 
-                                                 index=FIELDS["RULE_ABORT_IND"].index(row.get('RULE_ABORT_IND', FIELDS["RULE_ABORT_IND"][0])) if row.get('RULE_ABORT_IND') in FIELDS["RULE_ABORT_IND"] else 0,
-                                                 key=f"edit_rule_abort_ind_{i}")
-                
-                edit_rule_actv_ind = st.selectbox("RULE_ACTV_IND", 
-                                                FIELDS["RULE_ACTV_IND"], 
-                                                index=FIELDS["RULE_ACTV_IND"].index(row.get('RULE_ACTV_IND', FIELDS["RULE_ACTV_IND"][0])) if row.get('RULE_ACTV_IND') in FIELDS["RULE_ACTV_IND"] else 0,
-                                                key=f"edit_rule_actv_ind_{i}")
-                
-                edit_rule_seq_nr = st.selectbox("RULE_SEQ_NR", 
-                                               FIELDS["RULE_SEQ_NR"], 
-                                               index=FIELDS["RULE_SEQ_NR"].index(row.get('RULE_SEQ_NR', FIELDS["RULE_SEQ_NR"][0])) if row.get('RULE_SEQ_NR') in FIELDS["RULE_SEQ_NR"] else 0,
-                                               key=f"edit_rule_seq_nr_{i}")
-                
-                # Source details
-                st.markdown("**📤 Source Configuration**")
-                edit_rule_src_db_nm = st.selectbox("RULE_SRC_DB_NM", 
-                                                 FIELDS["RULE_SRC_DB_NM"], 
-                                                 index=FIELDS["RULE_SRC_DB_NM"].index(row.get('RULE_SRC_DB_NM', FIELDS["RULE_SRC_DB_NM"][0])) if row.get('RULE_SRC_DB_NM') in FIELDS["RULE_SRC_DB_NM"] else 0,
-                                                 key=f"edit_rule_src_db_nm_{i}")
-                
-                edit_rule_src_schm_nm = st.selectbox("RULE_SRC_SCHM_NM", 
-                                                   FIELDS["RULE_SRC_SCHM_NM"], 
-                                                   index=FIELDS["RULE_SRC_SCHM_NM"].index(row.get('RULE_SRC_SCHM_NM', FIELDS["RULE_SRC_SCHM_NM"][0])) if row.get('RULE_SRC_SCHM_NM') in FIELDS["RULE_SRC_SCHM_NM"] else 0,
-                                                   key=f"edit_rule_src_schm_nm_{i}")
-                
-                edit_rule_src_obj_id_txt = st.text_input("RULE_SRC_OBJ_ID_TXT", value=row.get('RULE_SRC_OBJ_ID_TXT', ''), key=f"edit_rule_src_obj_id_txt_{i}")
-                edit_rule_src_attr_nm = st.text_input("RULE_SRC_ATTR_NM", value=row.get('RULE_SRC_ATTR_NM', ''), key=f"edit_rule_src_attr_nm_{i}")
-
-            with col_edit2:
-                # Target details
-                st.markdown("**📥 Target Configuration**")
-                edit_rule_trgt_db_nm = st.selectbox("RULE_TRGT_DB_NM", 
-                                                  FIELDS["RULE_TRGT_DB_NM"], 
-                                                  index=FIELDS["RULE_TRGT_DB_NM"].index(row.get('RULE_TRGT_DB_NM', FIELDS["RULE_TRGT_DB_NM"][0])) if row.get('RULE_TRGT_DB_NM') in FIELDS["RULE_TRGT_DB_NM"] else 0,
-                                                  key=f"edit_rule_trgt_db_nm_{i}")
-                
-                edit_rule_trgt_schm_nm = st.selectbox("RULE_TRGT_SCHM_NM", 
-                                                    FIELDS["RULE_TRGT_SCHM_NM"], 
-                                                    index=FIELDS["RULE_TRGT_SCHM_NM"].index(row.get('RULE_TRGT_SCHM_NM', FIELDS["RULE_TRGT_SCHM_NM"][0])) if row.get('RULE_TRGT_SCHM_NM') in FIELDS["RULE_TRGT_SCHM_NM"] else 0,
-                                                    key=f"edit_rule_trgt_schm_nm_{i}")
-                
-                edit_rule_trgt_obj_id_txt = st.text_input("RULE_TRGT_OBJ_ID_TXT", value=row.get('RULE_TRGT_OBJ_ID_TXT', ''), key=f"edit_rule_trgt_obj_id_txt_{i}")
-                edit_rule_trgt_attr_nm = st.text_input("RULE_TRGT_ATTR_NM", value=row.get('RULE_TRGT_ATTR_NM', ''), key=f"edit_rule_trgt_attr_nm_{i}")
-                
-                edit_rule_trgt_data_layer_nm = st.selectbox("RULE_TRGT_DATA_LAYER_NM", 
-                                                          FIELDS["RULE_TRGT_DATA_LAYER_NM"], 
-                                                          index=FIELDS["RULE_TRGT_DATA_LAYER_NM"].index(row.get('RULE_TRGT_DATA_LAYER_NM', FIELDS["RULE_TRGT_DATA_LAYER_NM"][0])) if row.get('RULE_TRGT_DATA_LAYER_NM') in FIELDS["RULE_TRGT_DATA_LAYER_NM"] else 0,
-                                                          key=f"edit_rule_trgt_data_layer_nm_{i}")
-                
-                # Threshold values
-                st.markdown("**⚖️ Threshold Configuration**")
-                edit_rule_acpt_vary_pct = st.text_input("RULE_ACPT_VARY_PCT", value=row.get('RULE_ACPT_VARY_PCT', ''), key=f"edit_rule_acpt_vary_pct_{i}")
-                edit_rule_min_thresh_value_txt = st.text_input("RULE_MIN_THRESH_VALUE_TXT", value=row.get('RULE_MIN_THRESH_VALUE_TXT', ''), key=f"edit_rule_min_thresh_value_txt_{i}")
-                edit_rule_max_thresh_value_txt = st.text_input("RULE_MAX_THRESH_VALUE_TXT", value=row.get('RULE_MAX_THRESH_VALUE_TXT', ''), key=f"edit_rule_max_thresh_value_txt_{i}")
-                
-                # Additional fields
-                st.markdown("**📝 Additional Information**")
-                edit_rule_rmrk_txt = st.text_area("RULE_RMRK_TXT", value=row.get('RULE_RMRK_TXT', ''), key=f"edit_rule_rmrk_txt_{i}")
-                edit_asset_nm = st.text_input("ASSET_NM", value=row.get('ASSET_NM', ''), key=f"edit_asset_nm_{i}")
-            
-            # Rule logic - full width
-            st.markdown("**🔧 Rule Logic**")
-            edit_rule_logic_txt = st.text_area("RULE_LOGIC_TXT", value=row.get('RULE_LOGIC_TXT', ''), key=f"edit_rule_logic_txt_{i}", height=100)
-            
-            # Display read-only fields
-            st.markdown("**🕒 System Information (Read-Only)**")
-            col_ro1, col_ro2, col_ro3 = st.columns(3)
-            with col_ro1:
-                st.text_input("DATA_QC_ID", value=row.get('DATA_QC_ID', ''), disabled=True, key=f"ro_data_qc_id_{i}")
-                st.text_input("RULE_FREQ_CD", value=row.get('RULE_FREQ_CD', ''), disabled=True, key=f"ro_rule_freq_cd_{i}")
-                st.text_input("RULE_CDE_IND", value=row.get('RULE_CDE_IND', ''), disabled=True, key=f"ro_rule_cde_ind_{i}")
-            with col_ro2:
-                st.text_input("RULE_EFF_DT", value=row.get('RULE_EFF_DT', ''), disabled=True, key=f"ro_rule_eff_dt_{i}")
-                st.text_input("RULE_EXP_DT", value=row.get('RULE_EXP_DT', ''), disabled=True, key=f"ro_rule_exp_dt_{i}")
-                st.text_input("ASSET_ID", value=row.get('ASSET_ID', ''), disabled=True, key=f"ro_asset_id_{i}")
-            with col_ro3:
-                st.text_input("CREA_PRTY_ID", value=row.get('CREA_PRTY_ID', ''), disabled=True, key=f"ro_crea_prty_id_{i}")
-                st.text_input("CREA_TS", value=row.get('CREA_TS', ''), disabled=True, key=f"ro_crea_ts_{i}")
-                st.text_input("UPDT_PRTY_ID", value=row.get('UPDT_PRTY_ID', ''), disabled=True, key=f"ro_updt_prty_id_{i}")
-            
-            # Action buttons
-            st.markdown("---")
-            col_save, col_delete = st.columns(2)
-            
-            with col_save:
-                if st.button(f"💾 Save Changes", key=f"save_{i}", use_container_width=True, type="primary"):
-                    # Update the row with edited values
-                    updated_row = {
-                        "DATA_QC_ID": row.get('DATA_QC_ID', DEFAULT_VALUES["DATA_QC_ID"]),
-                        "APPL_CD": edit_appl_cd.upper(),
-                        "RULE_NM": edit_rule_nm.upper(),
-                        "RULE_DSC_TXT": edit_rule_dsc_txt.upper(),
-                        "RULE_FREQ_CD": row.get('RULE_FREQ_CD', DEFAULT_VALUES["RULE_FREQ_CD"]),
-                        "RULE_VALID_CTGY_NM": edit_rule_valid_ctgy_nm,
-                        "RULE_VALID_METH_CD": edit_rule_valid_meth_cd,
-                        "RULE_ABORT_IND": edit_rule_abort_ind,
-                        "RULE_SRC_DB_NM": edit_rule_src_db_nm,
-                        "RULE_SRC_SCHM_NM": edit_rule_src_schm_nm,
-                        "RULE_SRC_OBJ_ID_TXT": edit_rule_src_obj_id_txt.upper(),
-                        "RULE_SRC_ATTR_NM": edit_rule_src_attr_nm.upper(),
-                        "RULE_TRGT_DB_NM": edit_rule_trgt_db_nm,
-                        "RULE_TRGT_SCHM_NM": edit_rule_trgt_schm_nm,
-                        "RULE_TRGT_OBJ_ID_TXT": edit_rule_trgt_obj_id_txt.upper(),
-                        "RULE_TRGT_ATTR_NM": edit_rule_trgt_attr_nm.upper(),
-                        "RULE_ACPT_VARY_PCT": edit_rule_acpt_vary_pct,
-                        "RULE_MIN_THRESH_VALUE_TXT": edit_rule_min_thresh_value_txt,
-                        "RULE_MAX_THRESH_VALUE_TXT": edit_rule_max_thresh_value_txt,
-                        "RULE_TRGT_DATA_LAYER_NM": edit_rule_trgt_data_layer_nm,
-                        "RULE_CDE_IND": row.get('RULE_CDE_IND', DEFAULT_VALUES["RULE_CDE_IND"]),
-                        "RULE_LOGIC_TXT": edit_rule_logic_txt.upper(),
-                        "RULE_EFF_DT": row.get('RULE_EFF_DT', datetime.today().strftime("%Y-%m-%d")),
-                        "RULE_EXP_DT": row.get('RULE_EXP_DT', DEFAULT_VALUES["RULE_EXP_DT"]),
-                        "RULE_ACTV_IND": edit_rule_actv_ind,
-                        "RULE_RMRK_TXT": edit_rule_rmrk_txt.upper(),
-                        "CREA_PRTY_ID": row.get('CREA_PRTY_ID', "PL6P223"),
-                        "CREA_TS": row.get('CREA_TS', get_current_timestamp()),
-                        "UPDT_PRTY_ID": "PL6P223",
-                        "UPDT_TS": get_current_timestamp(),
-                        "ETL_CREA_NR": row.get('ETL_CREA_NR', ""),
-                        "ETL_CREA_TS": row.get('ETL_CREA_TS', ""),
-                        "ETL_UPDT_NR": row.get('ETL_UPDT_NR', ""),
-                        "ETL_UPDT_TS": row.get('ETL_UPDT_TS', ""),
-                        "ASSET_ID": row.get('ASSET_ID', DEFAULT_VALUES["ASSET_ID"]),
-                        "ASSET_NM": edit_asset_nm.upper(),
-                        "RULE_SEQ_NR": edit_rule_seq_nr
-                    }
-                    
-                    # Validate the updated rule
-                    temp_rows = st.session_state.rows.copy()
-                    temp_rows[i] = updated_row
-                    validation_errors = validate_single_row(updated_row, temp_rows, is_new_row=False)
-                    
-                    if validation_errors:
-                        st.error("**❌ Validation Errors:**")
-                        for error in validation_errors:
-                            st.error(f"• {error}")
-                    else:
-                        st.session_state.rows[i] = updated_row
-                        st.success("✅ Rule updated successfully!")
-                        st.rerun()
-            
-            with col_delete:
-                if st.button(f"🗑️ Delete Rule", key=f"delete_{i}", use_container_width=True):
-                    st.session_state.rows.pop(i)
-                    st.success("✅ Rule deleted successfully!")
-                    st.rerun()
+            if validation_errors:
+                st.session_state.auto_validation_errors = validation_errors
+                st.warning("⚠️ Changes saved but validation errors found. See below for details.")
+            else:
+                st.success("✅ Changes saved and validated successfully!")
+                # Clear any previous validation errors
+                if 'auto_validation_errors' in st.session_state:
+                    del st.session_state.auto_validation_errors
+                if 'all_validation_errors' in st.session_state:
+                    del st.session_state.all_validation_errors
+        
+        # Display auto-validation errors if any (using same format as manual validation)
+        if 'auto_validation_errors' in st.session_state:
+            st.markdown('<div class="validation-error">', unsafe_allow_html=True)
+            st.error("**❌ Auto-Validation Errors:**")
+            for error in st.session_state.auto_validation_errors:
+                st.error(f"• {error}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+    else:
+        st.info("📋 No rules available to display. Please upload or add rules first.")
 
 # Footer
 st.markdown("---")

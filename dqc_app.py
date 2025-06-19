@@ -102,7 +102,6 @@ if uploaded_file is not None:
         # Read CSV with tilde delimiter
         df = pd.read_csv(uploaded_file, delimiter='~')
         
-
         # Convert to list of dictionaries and ensure uppercase
         uploaded_rows = []
         for _, row in df.iterrows():
@@ -436,6 +435,7 @@ else:
         
         # Define column configuration for better editing experience
         column_config = {
+            "Row #": st.column_config.NumberColumn("Row #", disabled=True, width="small"),
             "DATA_QC_ID": st.column_config.TextColumn("DATA_QC_ID", disabled=True),
             "APPL_CD": st.column_config.TextColumn("APPL_CD", required=True),
             "RULE_NM": st.column_config.TextColumn("RULE_NM", required=True),

@@ -275,37 +275,37 @@ def generate_rule_description(rule_nm, rule_valid_meth_cd, rule_trgt_attr_nm, ru
     
     # Single layer checks
     if "_OP_HOP3_CNT_CHK" in rule_nm or "_OP_HOP3_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for OnPrem Source Records (HOP3) on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on OnPrem Source Records (HOP3) table {rule_trgt_obj_id_txt}."
     elif "_OP_HOP2_CNT_CHK" in rule_nm or "_OP_HOP2_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for OnPrem DS Records (HOP2) on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on OnPrem DS Records (HOP2) table {rule_trgt_obj_id_txt}."
     elif "_OP_HOP1_CNT_CHK" in rule_nm or "_OP_HOP1_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for OnPrem CSV Records (HOP1) on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on OnPrem CSV Records (HOP1) table {rule_trgt_obj_id_txt}."
     elif "_DL2_CNT_CHK" in rule_nm or "_DL2_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for DL2 layer on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on DL2 table {rule_trgt_obj_id_txt}."
     elif "_FND_DL3_CNT_CHK" in rule_nm or "_FND_DL3_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for foundation DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on foundation table {rule_trgt_obj_id_txt}."
     elif "_STG_DL3_CNT_CHK" in rule_nm or "_STG_DL3_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for staging DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on staging DL3 table {rule_trgt_obj_id_txt}."
     elif "_INFO_DL3_CNT_CHK" in rule_nm or "_INFO_DL3_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} for information DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} on information DL3 table {rule_trgt_obj_id_txt}."
     
     # Difference checks between layers
     elif "_OP_HOP3_HOP2_DIFF_CNT_CHK" in rule_nm or "_OP_HOP3_HOP2_DIFF_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} between OnPrem Source Records (HOP3) and OnPrem DS Records (HOP2) on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} between OnPrem Source Records (HOP3) and OnPrem DS Records (HOP2)"
     elif "_OP_HOP2_HOP1_DIFF_CNT_CHK" in rule_nm or "_OP_HOP2_HOP1_DIFF_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} between OnPrem DS Records (HOP2) and OnPrem CSV Records (HOP1) on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} between OnPrem DS Records (HOP2) and OnPrem CSV Records (HOP1)"
     elif "_OP_HOP1_DL2_DIFF_CNT_CHK" in rule_nm or "_OP_HOP1_DL2_DIFF_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} between OnPrem CSV Records (HOP1) and DL2 layer on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} between OnPrem CSV Records (HOP1) and DL2 table"
     elif "_DL2_FND_DIFF_CNT_CHK" in rule_nm or "_DL2_FND_DIFF_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} between DL2 layer and foundation DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} between DL2 and foundation table {rule_trgt_obj_id_txt}."
     elif "_STG_INFO_DIFF_CNT_CHK" in rule_nm or "_STG_INFO_DIFF_SUM_CHK" in rule_nm:
-        description = f"Performs {check_type} between staging DL3 table and information DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs {check_type} between staging table and information DL3 table {rule_trgt_obj_id_txt}."
     
     # Duplicate and overlap checks
     elif "_INFO_DL3_DUP_CHK" in rule_nm:
-        description = f"Performs duplicate check for information DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs Duplicate check on information DL3 table {rule_trgt_obj_id_txt}."
     elif "_INFO_DL3_OVERLAP_CHK" in rule_nm:
-        description = f"Performs overlap check for information DL3 table on table {rule_trgt_obj_id_txt}."
+        description = f"Performs Overlap check on information DL3 table {rule_trgt_obj_id_txt}."
     
     # Fallback for unrecognized patterns
     else:
@@ -518,7 +518,7 @@ with col1:
     with st.container():
         st.markdown('<div class="uppercase-input">', unsafe_allow_html=True)
         st.text_input("APPL_CD", key="form_appl_cd", 
-                     help="Enter complete application code (e.g., EMM_PAYMENTS, EMM_FINANCE)")
+                     help="Enter complete application code (e.g., EMM_ORACLE, EMM_SAP)")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with st.container():

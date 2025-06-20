@@ -49,52 +49,52 @@ def main():
     st.markdown('<h1 class="main-header">🏗️ DDLC Manager</h1>', unsafe_allow_html=True)
     st.markdown('<div class="info-box">Data Definition Language Changes Manager for Medallion Architecture</div>', unsafe_allow_html=True)
     
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page:", [
-        "Project Setup", 
-        "DL2 → Foundation Mapping", 
-        "Foundation → Information Mapping",
-        "Generate Reports"
+    # Create tabs for navigation
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋 Project Setup", 
+        "🔄 DL2 → Foundation", 
+        "🔄 Foundation → Information",
+        "📊 Generate Reports"
     ])
     
-    if page == "Project Setup":
+    with tab1:
         project_setup_page()
-    elif page == "DL2 → Foundation Mapping":
+    
+    with tab2:
         dl2_foundation_mapping_page()
-    elif page == "Foundation → Information Mapping":
+    
+    with tab3:
         foundation_information_mapping_page()
-    elif page == "Generate Reports":
+    
+    with tab4:
         generate_reports_page()
 
 def project_setup_page():
     st.markdown('<h2 class="section-header">📋 Project Information</h2>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         project_name = st.text_input("Project Name", value=st.session_state.project_info.get('project_name', ''))
-        version = st.text_input("Version", value=st.session_state.project_info.get('version', 'v1'))
-        author = st.text_input("Author", value=st.session_state.project_info.get('author', ''))
         
     with col2:
-        classification = st.selectbox("Classification", 
-                                    ["USAA INTERNAL", "PUBLIC", "CONFIDENTIAL"],
-                                    index=0 if st.session_state.project_info.get('classification') == 'USAA INTERNAL' else 0)
-        update_date = st.date_input("Update Date", value=datetime.now().date())
-        description = st.text_area("Project Description", 
-                                 value=st.session_state.project_info.get('description', ''))
+        version = st.text_input("Version", value=st.session_state.project_info.get('version', 'v1'))
+        
+    with col3:
+        author = st.text_input("Author", value=st.session_state.project_info.get('author', ''))
     
     if st.button("Save Project Information"):
         st.session_state.project_info = {
             'project_name': project_name,
             'version': version,
-            'author': author,
-            'classification': classification,
-            'update_date': update_date,
-            'description': description
+            'author': author
         }
         st.success("Project information saved!")
+        
+        # Show current project info
+        if all([project_name, version, author]):
+            st.info(f"📊 **Current Project:** {project_name} | **Version:** {version} | **Author:** {author}")
+            st.info(f"📁 **Excel files will be named:** `{project_name}_{version}_Foundation_Layer_DDLC.xlsx` and `{project_name}_{version}_Information_Layer_DDLC.xlsx`")
 
 def dl2_foundation_mapping_page():
     st.markdown('<h2 class="section-header">🔄 DL2 → Foundation Layer Mapping</h2>', unsafe_allow_html=True)
@@ -115,6 +115,7 @@ def dl2_foundation_mapping_page():
             target_table = st.text_input("Foundation Table Name", placeholder="e.g., APP_AUTOMATIC_PAYMENT_PLAN")
         
         st.subheader("🔧 Foundation Table DDL Script")
+        st.info("💡 Note: The mandatory audit columns (LOAD_TS, LOAD_DT, ETL_CREA_NR) will be automatically added to all Foundation tables")
         ddl_script = st.text_area(
             "Paste your CREATE TABLE DDL script here:",
             placeholder="""create or replace TRANSIENT TABLE OCFOPAYMENTSDBI.APP_CFOPYMTS.API1_API_INVOICE_STATUS_ACTION (
@@ -136,21 +137,37 @@ def dl2_foundation_mapping_page():
                 columns = parse_ddl_script(ddl_script)
                 
                 if columns:
+                    # Add mandatory Foundation audit columns
+                    foundation_audit_columns = [
+                        ("LOAD_TS", "TIMESTAMP_LTZ(9)"),
+                        ("LOAD_DT", "VARCHAR(10)"),
+                        ("ETL_CREA_NR", "NUMBER(19,0)")
+                    ]
+                    columns.extend(foundation_audit_columns)
+                    
                     # Generate mappings for each column
                     mappings_added = 0
                     for column_name, data_type in columns:
+                        # Check if it's an audit column to set appropriate source mapping
+                        if column_name in ["LOAD_TS", "LOAD_DT", "ETL_CREA_NR"]:
+                            source_field_val = "N/A"  # Audit columns have no source field
+                            transformation_logic_val = "ETL-generated audit column"
+                        else:
+                            source_field_val = ""  # To be filled by user
+                            transformation_logic_val = "Straight Move"  # Default transformation logic
+                            
                         mapping = {
                             'layer_transition': 'DL2_to_Foundation',
                             'source_database': source_database,
                             'source_schema': source_schema,
                             'source_table': source_table,
-                            'source_field': '',  # To be filled by user
+                            'source_field': source_field_val,
                             'target_database': target_database,
                             'target_schema': target_schema,
                             'target_table': target_table,
                             'target_field': column_name,
                             'target_data_type': data_type,
-                            'transformation_logic': '',  # To be filled by user
+                            'transformation_logic': transformation_logic_val,
                             'change_type': 'New Field Added',
                             'timestamp': datetime.now()
                         }
@@ -158,7 +175,7 @@ def dl2_foundation_mapping_page():
                         mappings_added += 1
                     
                     st.success(f"🎉 Successfully parsed DDL script and added {mappings_added} field mappings for {target_table}!")
-                    st.info("📝 Note: Source field names and transformation logic are left empty for you to fill in later.")
+                    st.info("📝 Note: Mandatory audit columns added automatically. Source field names and transformation logic for business columns are left empty for you to fill in later.")
                     st.rerun()
                 else:
                     st.error("❌ Could not parse any columns from the DDL script. Please check the format.")
@@ -188,6 +205,20 @@ def foundation_information_mapping_page():
             target_schema = st.text_input("Information Schema", value="APP_CFOPYMT5")
             target_table = st.text_input("Information Table Name", placeholder="e.g., AMATIC_PMT_PLAN")
         
+        st.subheader("🔧 Information Layer Configuration")
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            table_type = st.selectbox(
+                "Information Table Type:",
+                ["TYPE 1", "TYPE 2"],
+                help="TYPE 1: Standard audit columns | TYPE 2: Includes SCD columns"
+            )
+        with col2:
+            if table_type == "TYPE 1":
+                st.info("💡 TYPE 1 tables include 9 mandatory audit columns")
+            else:
+                st.info("💡 TYPE 2 tables include 12 mandatory audit columns (with SCD support)")
+        
         st.subheader("🔧 DBT Transformation Logic")
         dbt_script = st.text_area(
             "Paste your DBT SELECT statement here:",
@@ -206,29 +237,50 @@ def foundation_information_mapping_page():
                 # Parse DBT script to extract field mappings
                 field_mappings = parse_dbt_script(dbt_script)
                 
+                # Add mandatory Information audit columns based on type
+                if table_type == "TYPE 1":
+                    info_audit_columns = get_type1_audit_columns()
+                else:
+                    info_audit_columns = get_type2_audit_columns()
+                
+                # Add audit columns to field mappings
+                for source_field, target_field, transformation in info_audit_columns:
+                    field_mappings.append((source_field, target_field, transformation))
+                
                 if field_mappings:
                     # Generate mappings for each field
                     mappings_added = 0
                     for source_field, target_field, transformation in field_mappings:
+                        # Handle UNKNOWN fields - keep same source table, only field and transformation are unknown
+                        if source_field == "UNKNOWN":
+                            source_field_val = "UNKNOWN"  # Mark field as unknown
+                            transformation_val = "UNKNOWN - Manual input required"  # Mark transformation as unknown
+                        else:
+                            source_field_val = source_field
+                            transformation_val = transformation
+                            
                         mapping = {
                             'layer_transition': 'Foundation_to_Information',
                             'source_database': source_database,
                             'source_schema': source_schema,
-                            'source_table': source_table,
-                            'source_field': source_field,
+                            'source_table': source_table,  # Always use the same source table
+                            'source_field': source_field_val,
                             'target_database': target_database,
                             'target_schema': target_schema,
                             'target_table': target_table,
                             'target_field': target_field,
-                            'transformation_logic': transformation,
+                            'target_data_type': f"{table_type}",
+                            'transformation_logic': transformation_val,
                             'change_type': 'New Field Added',
                             'timestamp': datetime.now()
                         }
                         st.session_state.mappings.append(mapping)
                         mappings_added += 1
                     
+                    audit_count = len(info_audit_columns)
+                    business_count = mappings_added - audit_count
                     st.success(f"🎉 Successfully parsed DBT script and added {mappings_added} field mappings for {target_table}!")
-                    st.info("📝 Note: Review the parsed transformation logic for accuracy.")
+                    st.info(f"📝 Breakdown: {business_count} business fields + {audit_count} mandatory {table_type} audit columns")
                     st.rerun()
                 else:
                     st.error("❌ Could not parse any field mappings from the DBT script. Please check the format.")
@@ -252,10 +304,17 @@ def display_current_mappings(layer_type):
         
         # Display summary for each table
         for table_name, table_mappings in tables.items():
-            with st.expander(f"📊 {table_name} ({len(table_mappings)} mappings)", expanded=False):
+            # Get table type for Information layer tables
+            table_type_info = ""
+            if layer_type == "Foundation_to_Information" and table_mappings:
+                table_type = table_mappings[0].get('target_data_type', '')
+                if table_type in ['TYPE 1', 'TYPE 2']:
+                    table_type_info = f" ({table_type})"
+            
+            with st.expander(f"📊 {table_name}{table_type_info} ({len(table_mappings)} mappings)", expanded=False):
                 df = pd.DataFrame(table_mappings)
                 display_columns = ['source_table', 'source_field', 'target_field', 'transformation_logic', 'change_type']
-                if 'target_data_type' in df.columns:
+                if 'target_data_type' in df.columns and layer_type == "DL2_to_Foundation":
                     display_columns.insert(3, 'target_data_type')
                 st.dataframe(df[display_columns], use_container_width=True)
                 
@@ -272,6 +331,14 @@ def display_current_mappings(layer_type):
         col1, col2 = st.columns(2)
         col1.metric("Total Tables", len(tables))
         col2.metric("Total Mappings", len(filtered_mappings))
+        
+        # Additional summary for Information layer
+        if layer_type == "Foundation_to_Information":
+            type1_tables = len([t for t, mappings in tables.items() if mappings and mappings[0].get('target_data_type') == 'TYPE 1'])
+            type2_tables = len([t for t, mappings in tables.items() if mappings and mappings[0].get('target_data_type') == 'TYPE 2'])
+            col1, col2 = st.columns(2)
+            col1.metric("TYPE 1 Tables", type1_tables)
+            col2.metric("TYPE 2 Tables", type2_tables)
         
         # Option to clear all mappings
         if st.button(f"🗑️ Clear ALL {layer_type} Mappings", key=f"clear_all_{layer_type}"):
@@ -351,17 +418,15 @@ def parse_dbt_script(dbt_script):
             field_mappings.append((source_field, target_field, transformation_description))
             continue
         
-        # Pattern 2: Other {{ function(...) }} AS target_field
+        # Pattern 2: Other {{ function(...) }} AS target_field (NON handle_empty_or_null_value)
         other_dbt_function_match = re.search(r'\{\{\s*([^}]+)\s*\}\}\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)', line, re.IGNORECASE)
         
         if other_dbt_function_match:
             transformation = other_dbt_function_match.group(1).strip()
             target_field = other_dbt_function_match.group(2).strip()
             
-            # Try to extract source field from transformation
-            source_field = extract_source_field_from_transformation(transformation)
-            
-            field_mappings.append((source_field, target_field, f"{{{{ {transformation} }}}}"))
+            # Mark as UNKNOWN since it's not handle_empty_or_null_value
+            field_mappings.append(("UNKNOWN", target_field, "UNKNOWN - Manual input required"))
             continue
         
         # Pattern 3: source_field AS target_field
@@ -379,8 +444,18 @@ def parse_dbt_script(dbt_script):
         if case_match:
             transformation = case_match.group(1).strip()
             target_field = case_match.group(2).strip()
-            source_field = extract_source_field_from_transformation(transformation)
-            field_mappings.append((source_field, target_field, transformation))
+            # Mark as UNKNOWN for complex transformations
+            field_mappings.append(("UNKNOWN", target_field, "UNKNOWN - Manual input required"))
+            continue
+        
+        # Pattern 5: Any other pattern with AS (catch-all)
+        general_as_match = re.search(r'^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)', line, re.IGNORECASE)
+        
+        if general_as_match:
+            source_expression = general_as_match.group(1).strip()
+            target_field = general_as_match.group(2).strip()
+            # Mark as UNKNOWN for any other pattern
+            field_mappings.append(("UNKNOWN", target_field, "UNKNOWN - Manual input required"))
     
     return field_mappings
 
@@ -452,6 +527,37 @@ def parse_handle_empty_or_null_value(params_str):
     
     return source_field, transformation_description
 
+def get_type1_audit_columns():
+    """Return TYPE 1 Information layer mandatory audit columns."""
+    return [
+        ("N/A", "CREA_PRTY_ID", "ETL-generated: Creation party ID"),
+        ("N/A", "CREA_TS", "ETL-generated: Creation timestamp"),
+        ("N/A", "UPDT_PRTY_ID", "ETL-generated: Update party ID"),
+        ("N/A", "UPDT_TS", "ETL-generated: Update timestamp"),
+        ("N/A", "ETL_CREA_TS", "ETL-generated: ETL creation timestamp"),
+        ("ETL_CREA_NR", "ETL_CREA_NR", "Maps to ETL_CREA_NR from Foundation layer"),
+        ("N/A", "ETL_UPDT_TS", "ETL-generated: ETL update timestamp"),
+        ("N/A", "ETL_UPDT_NR", "ETL-generated: ETL update number"),
+        ("LOAD_TS", "FNDN_LOAD_TS", "Maps to LOAD_TS from Foundation layer")
+    ]
+
+def get_type2_audit_columns():
+    """Return TYPE 2 Information layer mandatory audit columns."""
+    return [
+        ("N/A", "CURR_REC_IND", "ETL-generated: Current record indicator for SCD Type 2"),
+        ("N/A", "SRC_SYS_REC_EFF_TS", "ETL-generated: Source system record effective timestamp"),
+        ("N/A", "SRC_SYS_REC_EXP_TS", "ETL-generated: Source system record expiration timestamp"),
+        ("N/A", "CREA_PRTY_ID", "ETL-generated: Creation party ID"),
+        ("N/A", "CREA_TS", "ETL-generated: Creation timestamp"),
+        ("N/A", "UPDT_PRTY_ID", "ETL-generated: Update party ID"),
+        ("N/A", "UPDT_TS", "ETL-generated: Update timestamp"),
+        ("N/A", "ETL_CREA_TS", "ETL-generated: ETL creation timestamp"),
+        ("ETL_CREA_NR", "ETL_CREA_NR", "Maps to ETL_CREA_NR from Foundation layer"),
+        ("N/A", "ETL_UPDT_TS", "ETL-generated: ETL update timestamp"),
+        ("N/A", "ETL_UPDT_NR", "ETL-generated: ETL update number"),
+        ("LOAD_TS", "FNDN_LOAD_TS", "Maps to LOAD_TS from Foundation layer")
+    ]
+
 def extract_source_field_from_transformation(transformation):
     """Extract source field name from transformation logic."""
     # Look for field names in quotes or as parameters
@@ -476,6 +582,15 @@ def generate_reports_page():
         st.warning("No mappings found. Please add some mappings first.")
         return
     
+    # Check if project info is available for filename generation
+    project_info = st.session_state.project_info
+    if project_info.get('project_name') and project_info.get('version'):
+        filename_prefix = f"{project_info['project_name']}_{project_info['version']}"
+        st.info(f"📁 **Project:** {project_info['project_name']} | **Version:** {project_info['version']} | **Author:** {project_info.get('author', 'Not specified')}")
+    else:
+        filename_prefix = "DDLC_Export"
+        st.warning("⚠️ Project information not set. Files will use default naming. Go to Project Setup to set project details.")
+    
     # Separate mappings by layer
     foundation_mappings = [m for m in st.session_state.mappings if m['layer_transition'] == 'DL2_to_Foundation']
     information_mappings = [m for m in st.session_state.mappings if m['layer_transition'] == 'Foundation_to_Information']
@@ -487,10 +602,11 @@ def generate_reports_page():
         if foundation_mappings:
             if st.button("📋 Generate Foundation Layer Excel", use_container_width=True):
                 excel_buffer = generate_foundation_excel_report(foundation_mappings)
+                filename = f"{filename_prefix}_Foundation_Layer_DDLC_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 st.download_button(
                     label="Download Foundation Layer Excel",
                     data=excel_buffer,
-                    file_name=f"Foundation_Layer_DDLC_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         else:
@@ -501,10 +617,11 @@ def generate_reports_page():
         if information_mappings:
             if st.button("📋 Generate Information Layer Excel", use_container_width=True):
                 excel_buffer = generate_information_excel_report(information_mappings)
+                filename = f"{filename_prefix}_Information_Layer_DDLC_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 st.download_button(
                     label="Download Information Layer Excel",
                     data=excel_buffer,
-                    file_name=f"Information_Layer_DDLC_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         else:

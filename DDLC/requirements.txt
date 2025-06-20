@@ -1,6 +1,3 @@
 streamlit
 pandas
 xlsxwriter
-python-pptx
-Pillow
-openpyxl
